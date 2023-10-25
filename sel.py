@@ -6,11 +6,11 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from rpadb import Mysqldb
-from rpainst import DATABASE_CONFIG
+from rpainst import dbconn
 
 # Create a database connection instance
-dbconn = Mysqldb()
-dbconn.connectdb()
+# dbconn = Mysqldb()
+# dbconn.connectdb()
 
 
 def login_to_naukri():
@@ -417,8 +417,8 @@ def page_resumes(driver):
     # result_return
     count = 2
     # resume_no
-    pg_no = 1
-    # ttl_resume
+    pg_no = 0
+    ttl_resume = 2
     # first
     # vary
     l = list()
@@ -545,13 +545,13 @@ def page_resumes(driver):
             time.sleep(2)
 
             # element is each profile in page
-            element = driver.find_elements(
-                By.CLASS_NAME, "candidate-details")[i]
-            # element = driver.find_element(by=By.XPATH, value='//*[contains(@class, "tuple-list")]/div[{}]'.format(i+1))
-            time.sleep(2)
+            # element = driver.find_elements(
+            #     By.CLASS_NAME, "candidate-details")[i]
+            # # element = driver.find_element(by=By.XPATH, value='//*[contains(@class, "tuple-list")]/div[{}]'.format(i+1))
+            # time.sleep(2)
 
             # storing all the text of the profile in str variable
-            str = element.text
+            # str = element.text
 
             # predicting the probability of the profile if val>0.70 it is selected
             timeDelay = random.randrange(1, 5)
@@ -566,6 +566,21 @@ def page_resumes(driver):
             #     driver.close()
             # Check domain relevancy by Ashu
             # domain_chk = relevant(str, industrydomain)
+
+            def check_mobnum_in_database(db, mobile):
+                try:
+                    cursor = db.cursor()
+                    cursor.execute(
+                        "SELECT mobile FROM talents WHERE mobile = %s", (mobile,))
+                    result = cursor.fetchone()
+                    print("Database query result:", result)
+                    return result is not None
+                except db.Error as e:
+                    print("Error checking mobnum in database:", str(e))
+                    return False
+                finally:
+                    if cursor:
+                        cursor.close()
             domain_chk = 0.40
             ttl_resume = ttl_resume + 1
             if domain_chk > 0.20:
@@ -577,47 +592,59 @@ def page_resumes(driver):
 
                 print("all_skill:", All_skills)
                 # All_skills = key_skills
+                db_instance = dbconn
+                ans = {}
 
                 try:
                     # Connect to the MySQL database
-                    # db_instance.connectdb()
-                    # if not db_instance.mcnx:
-                    #     return  # Return or handle appropriately if the database connection fails
+                    db_instance.connectdb()
+                    if not db_instance.mcnx:
+                        return  # Return or handle appropriately if the database connection fails
 
                     # Define XPaths as variables for code readability
-                    mobile_button_xpath = '//*[@id="rdxRoot"]/div/div[1]/div/div[3]/div/div[2]/div/div[3]/div[1]/div/div[1]/div/div[2]/div[1]/div[1]/div[2]/div[1]/div/button'
-                    contact_xpath = '//*[@id="rdxRoot"]/div/div[1]/div/div[3]/div/div[2]/div/div[3]/div[1]/div/div[1]/div/div[2]/div[1]/div[1]/div[2]/div[1]/div/button/div[1]'
+                    # mobile_button_xpath = '//*[@id="rdxRoot"]/div/div[1]/div/div[3]/div/div[2]/div/div[3]/div[1]/div/div[1]/div/div[2]/div[1]/div[1]/div[2]/div[1]/div/button'
+                    # contact_xpath = '//*[@id="rdxRoot"]/div/div[1]/div/div[3]/div/div[2]/div/div[3]/div[1]/div/div[1]/div/div[2]/div[1]/div[1]/div[2]/div[1]/div/button/div[1]'
 
                     while True:
                         try:
                             # Extract mobile number
                             mobile = driver.find_element(
-                                by=By.XPATH, value=mobile_button_xpath)
+                                by=By.XPATH, value='//*[@id="rdxRoot"]/div/div[1]/div/div[3]/div/div[2]/div/div[3]/div[1]/div/div[1]/div/div[2]/div[1]/div[1]/div[2]/div[1]/div/button')
                             mobile.click()
                             time.sleep(2)
                             contact = driver.find_element(
-                                by=By.XPATH, value=contact_xpath).text
-                            extracted_mobile = contact.split("(")[0]
+                                by=By.XPATH, value='//*[@id="rdxRoot"]/div/div[1]/div/div[3]/div/div[2]/div/div[3]/div[1]/div/div[1]/div/div[2]/div[1]/div[1]/div[2]/div[1]/div/button/div[1]').text
+                            ans[mobile] = contact.split("(")[0]
+                            print(ans[mobile])
 
-                            if dbconn.check_mobnum_in_database(extracted_mobile):
+                            if not check_mobnum_in_database(db_instance.mcnx, ans[mobile]):
                                 print(
-                                    f"Candidate's mobile number {extracted_mobile} matches with the database. Leaving the candidate.")
+                                    "Candidate with mobile {} not found in the database. Proceeding with other actions.".format(ans[mobile]))
+                                
+
+
+                                # # Scroll to the next candidate's mobile button
+                                # mobile_button = driver.find_element(
+                                #     By.CLASS_NAME, "show-phn-number")
+                                # driver.execute_script(
+                                #     "arguments[0].scrollIntoView(true);", mobile_button)
+
                             else:
                                 print(
-                                    f"Candidate with mobile {extracted_mobile} not found in the database. Proceeding with other actions.")
+                                    "Candidate with mobile {} found in the database. Leaving the candidate".format(ans[mobile]))
+                                pass
 
-                                val = extract_candidates(driver)
-                                print("relevant: val", val)
-
-                            # Scroll to the next candidate's mobile button
-                            mobile_button = driver.find_element(
-                                by=By.XPATH, value=mobile_button_xpath)
-                            driver.execute_script(
-                                "arguments[0].scrollIntoView(true);", mobile_button)
+                                # # Scroll to the next candidate's mobile button
+                                # mobile_button = driver.find_element(
+                                #     By.CLASS_NAME, "show-phn-number")
+                                # driver.execute_script(
+                                #     "arguments[0].scrollIntoView(true);", mobile_button)
 
                         except Exception as e:
-                            print("Error occurred:", e)
-                            # Handle the error, e.g., move to the next candidate
+                            print("An error occurred:", str(e))
+
+                            # val = extract_candidates(driver)
+                            # print("relevant: val", val)
 
                 except:
                     pass
@@ -631,9 +658,9 @@ def extract_candidates(driver):
 
     except Exception as e:
         print("Error occurred:", e)
-    finally:
-        # Ensure you properly close the web driver when you're done
-        driver.quit()
+    # finally:
+    #     # Ensure you properly close the web driver when you're done
+    #     driver.quit()
 
 
 # Main script
